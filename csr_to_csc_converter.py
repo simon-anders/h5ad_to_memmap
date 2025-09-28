@@ -13,6 +13,8 @@ import json
 from typing import Tuple
 import numba
 
+DATA_DTYPE = ('int16', np.int16)
+
 def load_csr_info(input_file: str) -> Tuple[int, int, int]:
     """Load basic info about the CSR matrix."""
     with h5py.File(input_file, 'r') as f:
@@ -96,8 +98,8 @@ def write_metadata(output_dir: str, n_rows: int, n_cols: int, nnz: int) -> None:
         'shape': [int(n_rows), int(n_cols)],
         'nnz': int(nnz),
         'dtypes': {
-            'data': 'float64',
-            'indices': 'int64', 
+            'data': DATA_DTYPE[0],
+            'indices': 'int64',
             'indptr': 'int64'
         }
     }
@@ -114,8 +116,8 @@ def pass2_fill_csc(input_file: str, output_dir: str, csc_indptr: np.ndarray,
     print(f"Pass 2: Filling CSC arrays with row chunks of {row_chunk_size}...")
     
     # Create binary files using memmap for efficient writing
-    csc_data = np.memmap(os.path.join(output_dir, 'data.bin'), 
-                         dtype=np.float64, mode='w+', shape=(nnz,))
+    csc_data = np.memmap(os.path.join(output_dir, 'data.bin'),
+                         dtype=DATA_DTYPE[1], mode='w+', shape=(nnz,))
     csc_indices = np.memmap(os.path.join(output_dir, 'indices.bin'),
                            dtype=np.int64, mode='w+', shape=(nnz,))
     
@@ -157,8 +159,7 @@ def pass2_fill_csc(input_file: str, output_dir: str, csc_indptr: np.ndarray,
             
             chunk_time = time.time() - chunk_start_time
             nnz_in_chunk = chunk_data_end - chunk_data_start if chunk_data_start < chunk_data_end else 0
-            if (row_start // row_chunk_size + 1) % 1 == 0:
-                print(f"    Processed {row_end:,} / {n_rows:,} rows ({chunk_time:.1f}s, {nnz_in_chunk:,} nnz)")
+            print(f"    Processed {row_end:,} / {n_rows:,} rows ({chunk_time:.1f}s, {nnz_in_chunk:,} nnz)")
     
     # Ensure data is written to disk
     del csc_data, csc_indices

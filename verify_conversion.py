@@ -32,7 +32,7 @@ def load_csc_matrix(csc_dir):
     shape = tuple(metadata['shape'])
     
     # Memory-map arrays
-    data = np.memmap(f'{csc_dir}/data.bin', dtype=np.float64, mode='r')
+    data = np.memmap(f'{csc_dir}/data.bin', dtype=np.int16, mode='r')
     indices = np.memmap(f'{csc_dir}/indices.bin', dtype=np.int64, mode='r')
     indptr = np.fromfile(f'{csc_dir}/indptr.bin', dtype=np.int64)  # indptr is small, load normally
     
