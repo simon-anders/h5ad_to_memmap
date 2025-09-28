@@ -39,7 +39,7 @@ def write_metadata(output_dir: str, n_rows: int, n_cols: int, nnz: int, data_dty
     with open(os.path.join(output_dir, 'metadata.json'), 'w') as f:
         json.dump(metadata, f, indent=2)
 
-def extract_csr_to_memmap(input_file: str, output_dir: str, chunk_size: int = 10000000) -> None:
+def extract_csr_to_memmap(input_file: str, output_dir: str, target_dtype: str, chunk_size: int = 10000000) -> None:
     """
     Extract CSR matrix from h5ad file and write as memory-mapped binary files.
     """
@@ -51,14 +51,15 @@ def extract_csr_to_memmap(input_file: str, output_dir: str, chunk_size: int = 10
     print(f"Matrix: {n_rows:,} rows × {n_cols:,} cols, {nnz:,} non-zeros")
 
     with h5py.File(input_file, 'r') as f:
-        # Get data type from the original data
-        data_dtype_obj = f['X/data'].dtype
-        data_dtype_str = str(data_dtype_obj)
+        # Get original data type for comparison
+        original_dtype = f['X/data'].dtype
+        target_dtype_obj = np.dtype(target_dtype)
 
-        print(f"Data type: {data_dtype_str}")
+        print(f"Original data type: {original_dtype}")
+        print(f"Target data type: {target_dtype}")
 
         # Write metadata
-        write_metadata(output_dir, n_rows, n_cols, nnz, data_dtype_str)
+        write_metadata(output_dir, n_rows, n_cols, nnz, target_dtype)
 
         # Copy indptr (small array, copy directly)
         print("Writing indptr...")
@@ -79,16 +80,18 @@ def extract_csr_to_memmap(input_file: str, output_dir: str, chunk_size: int = 10
 
         del indices_memmap
 
-        # Copy data in chunks
+        # Copy data in chunks, converting to target dtype
         print("Writing data...")
         data_file = os.path.join(output_dir, 'data.bin')
-        data_memmap = np.memmap(data_file, dtype=data_dtype_obj, mode='w+', shape=(nnz,))
+        data_memmap = np.memmap(data_file, dtype=target_dtype_obj, mode='w+', shape=(nnz,))
 
         data_dataset = f['X/data']
         for start_idx in range(0, nnz, chunk_size):
             end_idx = min(start_idx + chunk_size, nnz)
             chunk = data_dataset[start_idx:end_idx]
-            data_memmap[start_idx:end_idx] = chunk
+            # Convert chunk to target dtype
+            converted_chunk = chunk.astype(target_dtype_obj)
+            data_memmap[start_idx:end_idx] = converted_chunk
             print(f"  Processed {end_idx:,} / {nnz:,} data values")
 
         del data_memmap
@@ -101,13 +104,15 @@ def main():
     parser = argparse.ArgumentParser(description="Extract CSR matrix from h5ad to memory-mapped files")
     parser.add_argument("input_file", help="Input h5ad file")
     parser.add_argument("output_dir", help="Output directory")
+    parser.add_argument("--dtype", type=str, required=True,
+                       help="Target data type (e.g., float32, float64, int32)")
     parser.add_argument("--chunk-size", type=int, default=10000000,
                        help="Chunk size for copying data (default: 10000000)")
 
     args = parser.parse_args()
 
     start_time = time.time()
-    extract_csr_to_memmap(args.input_file, args.output_dir, args.chunk_size)
+    extract_csr_to_memmap(args.input_file, args.output_dir, args.dtype, args.chunk_size)
     total_time = time.time() - start_time
     print(f"Total extraction time: {total_time:.1f} seconds ({total_time/60:.1f} minutes)")
 
