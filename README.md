@@ -85,7 +85,7 @@ The tools output sparse matrices as separate binary files:
 
 ### Metadata Format
 
-```json
+```
 {
   "encoding-type": "csr_matrix" | "csc_matrix",
   "encoding-version": "0.1.0",
